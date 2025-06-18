@@ -14,7 +14,7 @@ export default async function handler(req, res) {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${bearerToken}`,
       },
-      body: JSON.stringify(req.body),
+      body: JSON.stringify({ product: req.body }), // ✅ Wrap properly
     });
 
     const result = await response.json();
