@@ -1,7 +1,7 @@
 export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).send("Method Not Allowed");
 
-  const TOKEN = "2a60aed971cd20e137ea6052cab3bbd8";
+const TOKEN = process.env.DIGISHI_TOKEN;
 
   // Shopify sends product object (either direct or wrapped)
   const shopifyProduct = req.body?.product ? req.body.product : req.body;
