@@ -10,8 +10,8 @@ export default async function handler(req, res) {
   const createUrl = "https://digisyria.com/module/suppliers/createNewProduct";
 
   // Product Update expects { product: {...} } (your earlier working format)
-  const updatePayload = { product: shopifyProduct };
-
+const updatePayload = { token: TOKEN, product: shopifyProduct };
+  
   // Create New Product expects { token: "...", product: {...} }
   const createPayload = { token: TOKEN, product: shopifyProduct };
 
