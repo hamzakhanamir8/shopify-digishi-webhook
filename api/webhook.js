@@ -1,19 +1,15 @@
 export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).send("Method Not Allowed");
 
-const TOKEN = process.env.DIGISHI_TOKEN;
+  const DIGISHI_TOKEN = process.env.DIGISHI_TOKEN;
+  const SHOPIFY_TOKEN = process.env.SHOPIFY_ADMIN_TOKEN;
+  const SHOP = process.env.SHOPIFY_SHOP;
+  const LOCATION_ID = "113225695600";
 
-  // Shopify sends product object (either direct or wrapped)
   const shopifyProduct = req.body?.product ? req.body.product : req.body;
 
   const updateUrl = "https://digisyria.com/module/suppliers/productUpdate";
   const createUrl = "https://digisyria.com/module/suppliers/createNewProduct";
-
-  // Product Update expects { product: {...} } (your earlier working format)
-const updatePayload = { token: TOKEN, product: shopifyProduct };
-  
-  // Create New Product expects { token: "...", product: {...} }
-  const createPayload = { token: TOKEN, product: shopifyProduct };
 
   async function postJson(url, payload) {
     const r = await fetch(url, {
@@ -26,36 +22,60 @@ const updatePayload = { token: TOKEN, product: shopifyProduct };
   }
 
   try {
-    // 1) Try update
-    let r1 = await postJson(updateUrl, updatePayload);
-    console.log("productUpdate status:", r1.status, r1.text.slice(0, 300));
+    // 1️⃣ Collect inventory_item_ids
+    const inventoryItemIds = shopifyProduct.variants
+      .map(v => v.inventory_item_id)
+      .filter(Boolean);
 
-    // 2) If DiGiShi says product not found (404), create then retry update
-    if (r1.status === 404) {
-      console.log("Product not found. Creating in DiGiShi:", shopifyProduct?.id);
+    let inventoryMap = {};
 
-      const c = await postJson(createUrl, createPayload);
-      console.log("createNewProduct status:", c.status, c.text.slice(0, 300));
+    if (inventoryItemIds.length > 0) {
+      const inventoryUrl =
+        `https://${SHOP}/admin/api/2025-04/inventory_levels.json` +
+        `?inventory_item_ids=${inventoryItemIds.join(",")}` +
+        `&location_ids=${LOCATION_ID}`;
 
-      // Retry update after create (even if create returns 200/OK)
-      const r2 = await postJson(updateUrl, updatePayload);
-      console.log("productUpdate retry status:", r2.status, r2.text.slice(0, 300));
-
-      return res.status(200).json({
-        message: "Create-if-missing flow executed",
-        productId: shopifyProduct?.id,
-        firstUpdate: { status: r1.status, body: r1.text },
-        create: { status: c.status, body: c.text },
-        retryUpdate: { status: r2.status, body: r2.text },
+      const invRes = await fetch(inventoryUrl, {
+        headers: {
+          "X-Shopify-Access-Token": SHOPIFY_TOKEN,
+          "Content-Type": "application/json"
+        }
       });
+
+      const invData = await invRes.json();
+
+      if (invData.inventory_levels) {
+        invData.inventory_levels.forEach(level => {
+          inventoryMap[level.inventory_item_id] = level.available;
+        });
+      }
     }
 
-    // Normal success / other errors
-    return res.status(200).json({
-      message: "Update attempted",
-      productId: shopifyProduct?.id,
-      update: { status: r1.status, body: r1.text },
+    // 2️⃣ Inject correct location-based quantity
+    shopifyProduct.variants = shopifyProduct.variants.map(variant => {
+      const correctQty = inventoryMap[variant.inventory_item_id] ?? 0;
+      return {
+        ...variant,
+        inventory_quantity: correctQty
+      };
     });
+
+    const updatePayload = { token: DIGISHI_TOKEN, product: shopifyProduct };
+    const createPayload = { token: DIGISHI_TOKEN, product: shopifyProduct };
+
+    // 3️⃣ Update flow
+    let r1 = await postJson(updateUrl, updatePayload);
+
+    if (r1.status === 404) {
+      await postJson(createUrl, createPayload);
+      await postJson(updateUrl, updatePayload);
+    }
+
+    return res.status(200).json({
+      message: "Location-filtered update sent",
+      productId: shopifyProduct?.id
+    });
+
   } catch (err) {
     console.error("Webhook failed:", err);
     return res.status(500).json({ error: "Webhook failed", details: err.message });
