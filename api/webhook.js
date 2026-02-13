@@ -5,7 +5,7 @@ export default async function handler(req, res) {
 
   const DIGISHI_TOKEN = process.env.DIGISHI_TOKEN;
   const SHOPIFY_ACCESS_TOKEN = process.env.SHOPIFY_ADMIN_TOKEN;
-  const SHOPIFY_SHOP_DOMAIN = process.env.SHOPIFY_SHOP_DOMAIN;
+  const SHOP_DOMAIN = process.env.SHOPIFY_SHOP_DOMAIN;
   const TARGET_LOCATION_ID = 113225695600;
 
   const topic = req.headers["x-shopify-topic"];
@@ -26,7 +26,7 @@ export default async function handler(req, res) {
   }
 
   async function fetchInventoryLevel(inventoryItemId) {
-    const url = `https://${SHOPIFY_SHOP_DOMAIN}/admin/api/2025-04/inventory_levels.json?inventory_item_ids=${inventoryItemId}&location_ids=${TARGET_LOCATION_ID}`;
+    const url = `https://${SHOP_DOMAIN}/admin/api/2025-04/inventory_levels.json?inventory_item_ids=${inventoryItemId}&location_ids=${TARGET_LOCATION_ID}`;
 
     const response = await fetch(url, {
       method: "GET",
@@ -113,7 +113,7 @@ export default async function handler(req, res) {
 
       // Fetch product by inventory item
       const productResponse = await fetch(
-        `https://${SHOPIFY_SHOP_DOMAIN}/admin/api/2025-04/variants.json?inventory_item_ids=${inventoryItemId}`,
+        `https://${SHOP_DOMAIN}/admin/api/2025-04/variants.json?inventory_item_ids=${inventoryItemId}`,
         {
           headers: {
             "X-Shopify-Access-Token": SHOPIFY_ACCESS_TOKEN,
